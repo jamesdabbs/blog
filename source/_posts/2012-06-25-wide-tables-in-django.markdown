@@ -12,6 +12,9 @@ categories:
 
 In this post, I'll discuss an exploration I recently did examining how Django
 handles the sort of wide tables that may arise from dynamically created models.
+Code is available 
+[on github](https://github.com/jamesdabbs/django-experiments/tree/master/wide_tables)
+if you'd like to follow along.
 
 ## Dynamic Models
 I've recently been working on a Django project which requires an extensible 
