@@ -182,4 +182,10 @@
 	  }
 
     /* ----- Extra site styling - JD ----- */
-    
+    #content .entry-content table.data {
+        margin: 0 auto 1em;
+        th, td {
+            text-align: center;
+        }
+    }
+
