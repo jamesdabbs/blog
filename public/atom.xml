@@ -4,7 +4,7 @@
   <title><![CDATA[Blog | jdabbs.com]]></title>
   <link href="http://blog.jdabbs.com/atom.xml" rel="self"/>
   <link href="http://blog.jdabbs.com/"/>
-  <updated>2012-06-25T17:07:30-04:00</updated>
+  <updated>2012-06-25T17:45:02-04:00</updated>
   <id>http://blog.jdabbs.com/</id>
   <author>
     <name><![CDATA[James Dabbs]]></name>
@@ -232,14 +232,14 @@ method to allow you to select from only a limited subset of columns. I tested
 the usual retrieval method:</p>
 
 <figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="nb">list</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())</span>  <span class="c"># list() forces evaluation of the QuerySet</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">A</span><span class="p">()</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">())</span>  <span class="c"># list() forces evaluation of the QuerySet</span>
 </span></code></pre></td></tr></table></div></figure>
 
 
 <p>against</p>
 
 <figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="nb">list</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="o">&lt;</span><span class="n">n</span> <span class="n">columns</span><span class="o">&gt;</span><span class="p">))</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">B</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">=</span> <span class="nb">list</span><span class="p">(</span><span class="n">model</span><span class="o">.</span><span class="n">objects</span><span class="o">.</span><span class="n">all</span><span class="p">()</span><span class="o">.</span><span class="n">values</span><span class="p">(</span><span class="o">&lt;</span><span class="n">n</span> <span class="n">columns</span><span class="o">&gt;</span><span class="p">))</span>
 </span></code></pre></td></tr></table></div></figure>
 
 
@@ -248,10 +248,10 @@ the usual retrieval method:</p>
 <table class="data">
   <tr>
     <th>Model</th>
-    <th>Full</th>
-    <th>n=10</th>
-    <th>n=100</th>
-    <th>n=1000</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
   </tr>
   <tr>
     <td>Small</td>
@@ -302,14 +302,14 @@ you&#8217;d definitely expect to see some speedups when updating a few columns i
 a wide table. As above, I tested the usual</p>
 
 <figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">obj</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">A</span><span class="p">()</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">save</span><span class="p">()</span>
 </span></code></pre></td></tr></table></div></figure>
 
 
 <p>against</p>
 
 <figure class='code'><figcaption><span></span></figcaption><div class="highlight"><table><tr><td class="gutter"><pre class="line-numbers"><span class='line-number'>1</span>
-</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">obj</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=&lt;</span><span class="n">n</span> <span class="n">columns</span><span class="o">&gt;</span><span class="p">)</span>
+</pre></td><td class='code'><pre><code class='python'><span class='line'><span class="n">B</span><span class="p">(</span><span class="n">n</span><span class="p">)</span> <span class="o">=</span> <span class="n">obj</span><span class="o">.</span><span class="n">save</span><span class="p">(</span><span class="n">update_fields</span><span class="o">=&lt;</span><span class="n">n</span> <span class="n">columns</span><span class="o">&gt;</span><span class="p">)</span>
 </span></code></pre></td></tr></table></div></figure>
 
 
@@ -318,10 +318,10 @@ a wide table. As above, I tested the usual</p>
 <table class="data">
   <tr>
     <th>Model</th>
-    <th>Full</th>
-    <th>n=10</th>
-    <th>n=100</th>
-    <th>n=1000</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
   </tr>
   <tr>
     <td>Small</td>
@@ -356,7 +356,7 @@ gains by using <code>update_fields</code>.</p>
 <h2>In Closing &#8230;</h2>
 
 <p>This experiment indicates that large dynamic models can perform reasonably well,
-with judicious use of Django&#8217;s lower-level database tools. It also suggests
+given judicious use of Django&#8217;s lower-level database tools. It also suggests
 some techniques that may be useful, regardless of how you&#8217;re defining your
 models:</p>
 

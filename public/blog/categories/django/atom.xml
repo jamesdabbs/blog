@@ -4,7 +4,7 @@
   <title><![CDATA[Category: Django | Blog | jdabbs.com]]></title>
   <link href="http://blog.jdabbs.com/blog/categories/django/atom.xml" rel="self"/>
   <link href="http://blog.jdabbs.com/"/>
-  <updated>2012-06-25T17:07:30-04:00</updated>
+  <updated>2012-06-25T17:45:02-04:00</updated>
   <id>http://blog.jdabbs.com/</id>
   <author>
     <name><![CDATA[James Dabbs]]></name>
@@ -223,7 +223,7 @@ the usual retrieval method:</p>
 
 <p>``` python</p>
 
-<pre><code>list(model.objects.all())  # list() forces evaluation of the QuerySet
+<pre><code>A() = list(model.objects.all())  # list() forces evaluation of the QuerySet
 </code></pre>
 
 <p>```</p>
@@ -232,7 +232,7 @@ the usual retrieval method:</p>
 
 <p>``` python</p>
 
-<pre><code>list(model.objects.all().values(&lt;n columns&gt;))
+<pre><code>B(n) = list(model.objects.all().values(&lt;n columns&gt;))
 </code></pre>
 
 <p>```</p>
@@ -242,10 +242,10 @@ the usual retrieval method:</p>
 <table class="data">
   <tr>
     <th>Model</th>
-    <th>Full</th>
-    <th>n=10</th>
-    <th>n=100</th>
-    <th>n=1000</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
   </tr>
   <tr>
     <td>Small</td>
@@ -297,7 +297,7 @@ a wide table. As above, I tested the usual</p>
 
 <p>``` python</p>
 
-<pre><code>obj.save()
+<pre><code>A() = obj.save()
 </code></pre>
 
 <p>```</p>
@@ -306,7 +306,7 @@ a wide table. As above, I tested the usual</p>
 
 <p>``` python</p>
 
-<pre><code>obj.save(update_fields=&lt;n columns&gt;)
+<pre><code>B(n) = obj.save(update_fields=&lt;n columns&gt;)
 </code></pre>
 
 <p>```</p>
@@ -316,10 +316,10 @@ a wide table. As above, I tested the usual</p>
 <table class="data">
   <tr>
     <th>Model</th>
-    <th>Full</th>
-    <th>n=10</th>
-    <th>n=100</th>
-    <th>n=1000</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
   </tr>
   <tr>
     <td>Small</td>
@@ -354,7 +354,7 @@ gains by using <code>update_fields</code>.</p>
 <h2>In Closing ...</h2>
 
 <p>This experiment indicates that large dynamic models can perform reasonably well,
-with judicious use of Django's lower-level database tools. It also suggests
+given judicious use of Django's lower-level database tools. It also suggests
 some techniques that may be useful, regardless of how you're defining your
 models:</p>
 

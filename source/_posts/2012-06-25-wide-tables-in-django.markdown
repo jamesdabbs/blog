@@ -174,13 +174,13 @@ method to allow you to select from only a limited subset of columns. I tested
 the usual retrieval method:
 
 ``` python
-    list(model.objects.all())  # list() forces evaluation of the QuerySet
+    A() = list(model.objects.all())  # list() forces evaluation of the QuerySet
 ```
 
 against
 
 ``` python
-    list(model.objects.all().values(<n columns>))
+    B(n) = list(model.objects.all().values(<n columns>))
 ```
 
 for varying numbers of columns.
@@ -188,10 +188,10 @@ for varying numbers of columns.
 <table class="data">
   <tr>
     <th>Model</th>
-    <th>Full</th>
-    <th>n=10</th>
-    <th>n=100</th>
-    <th>n=1000</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
   </tr>
   <tr>
     <td>Small</td>
@@ -238,13 +238,13 @@ you'd definitely expect to see some speedups when updating a few columns in
 a wide table. As above, I tested the usual
 
 ``` python
-    obj.save()
+    A() = obj.save()
 ```
 
 against
 
 ``` python
-    obj.save(update_fields=<n columns>)
+    B(n) = obj.save(update_fields=<n columns>)
 ```
 
 for varying numbers of columns.
@@ -252,10 +252,10 @@ for varying numbers of columns.
 <table class="data">
   <tr>
     <th>Model</th>
-    <th>Full</th>
-    <th>n=10</th>
-    <th>n=100</th>
-    <th>n=1000</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
   </tr>
   <tr>
     <td>Small</td>
@@ -289,7 +289,7 @@ gains by using `update_fields`.
 ## In Closing ...
 
 This experiment indicates that large dynamic models can perform reasonably well,
-with judicious use of Django's lower-level database tools. It also suggests
+given judicious use of Django's lower-level database tools. It also suggests
 some techniques that may be useful, regardless of how you're defining your
 models:
 
