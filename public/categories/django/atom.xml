@@ -1,0 +1,592 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+
+  <title><![CDATA[Category: Django | Blog | jdabbs.com]]></title>
+  <link href="http://blog.jdabbs.com/categories/django/atom.xml" rel="self"/>
+  <link href="http://blog.jdabbs.com/"/>
+  <updated>2012-07-02T14:59:19-04:00</updated>
+  <id>http://blog.jdabbs.com/</id>
+  <author>
+    <name><![CDATA[James Dabbs]]></name>
+    
+  </author>
+  <generator uri="http://octopress.org/">Octopress</generator>
+
+  
+  <entry>
+    <title type="html"><![CDATA[Django on Heroku - db:pull]]></title>
+    <link href="http://blog.jdabbs.com/2012/07/02/django-on-heroku-db-pull/"/>
+    <updated>2012-07-02T10:57:00-04:00</updated>
+    <id>http://blog.jdabbs.com/2012/07/02/django-on-heroku-db-pull</id>
+    <content type="html"><![CDATA[<p><a href="http://www.heroku.com">Heroku</a> has
+<a href="https://devcenter.heroku.com/articles/django">officially supported Django</a> for
+a while now and although Heroku is awesome, there are still a few pain points.
+One in particular that's been causing me problems is <code>heroku db:pull</code> - it's a
+great convenience method, but it can be fragile and slow, especially on larger
+data sets.</p>
+
+<p>Heroku offers another convenient way to move data around (assuming you're using
+Postgres): <a href="https://devcenter.heroku.com/articles/pgbackups">pgbackups</a>. Here's
+the basic process: <!--more--></p>
+
+<p>``` bash</p>
+
+<pre><code># Activate the pgbackups addon
+$ heroku addons:add pgbackups
+
+# Create a backup
+$ heroku pgbackups:capture
+
+# pgbackups:url temporarily exposes a url for accessing a captured database
+# The capture can be downloaded using curl
+$ curl -o latest.dump `heroku pgbackups:url`
+
+# Restore from the dump
+$ pg_restore --verbose --clean --no-acl --no-owner -h myhost -U myuser -d mydb latest.dump
+</code></pre>
+
+<p>```</p>
+
+<p>Not bad, but certainly a lot more verbose than <code>heroku db:pull</code>. If you find
+yourself doing it often, you should definitely automate.</p>
+
+<h2>Custom Management Commands</h2>
+
+<p>Django allows you to
+<a href="https://docs.djangoproject.com/en/dev/howto/custom-management-commands/">define custom management commands</a>,
+so it's fairly simple to include a command to replace</p>
+
+<p>``` bash</p>
+
+<pre><code>$ heroku db:pull
+</code></pre>
+
+<p>```</p>
+
+<p>with</p>
+
+<p>``` bash</p>
+
+<pre><code>$ ./manage.py db:pull
+</code></pre>
+
+<p>```</p>
+
+<p>Here's the command I'm using. Obviously, you may want to tweak some of
+the options to suit your needs:</p>
+
+<p>``` python management/commands/db:pull.py</p>
+
+<pre><code>from optparse import make_option
+import os
+import subprocess
+import urllib2
+
+from django.conf import settings
+from django.core.management.base import BaseCommand
+
+
+class Command(BaseCommand):
+    help = 'Replaces `heroku db:pull` by using `pgbackups` to import data'
+    option_list = BaseCommand.option_list + (
+        # Options for this management command
+        make_option('-x',
+            action='store_true',
+            dest='delete',
+            default=False,
+            help='Delete the pg_dump file when complete.'
+        ),
+        make_option('-p', '--path',
+            dest='path',
+            default='local',
+            help='Where to store the pg_dump file.'
+        ),
+        # Options passed on to Heroku
+        make_option('--app',
+            dest='app',
+            default=None,
+            help='Which Heroku app to use'
+        )
+    )
+
+    def handle(self, backup_id='', **options):
+        def _make_cmd(arg):
+            cmd = ['heroku', 'pgbackups:%s' % arg]
+            if options['app']:
+                cmd += ['--app', options['app']]
+            return cmd
+
+        # Capture a new backup if needed
+        if options['capture']:
+            subprocess.call(_make_cmd('capture'))
+
+        # Expose and store a public backup url
+        arg = 'url %s' % backup_id if backup_id else 'url'
+        url = subprocess.check_output(_make_cmd(arg)).strip()
+
+        # Download the dump to the location specified by -p
+        filename = url.split('/')[-1].split('?')[0]
+        filepath = os.path.join(
+            settings.PROJECT_ROOT, options['path'], filename)
+        dump = open(filepath, 'wb')
+        dump.write(urllib2.urlopen(url).read())
+        dump.close()
+
+        # Load in the dump
+        db = settings.DATABASES['default']
+        subprocess.call(['pg_restore', '--verbose', '--clean', '--no-acl',
+            '--no-owner', '-h', db['HOST'], '-U', db['USER'], '-d', db['NAME'],
+            filepath])
+
+        # Delete the dump, if required
+        if options['delete']:
+            subprocess.call('rm ' + filepath)
+</code></pre>
+
+<p>```</p>
+
+<p>Note that <code>management</code> needs to be a submodule of an installed app and
+<code>commands</code> needs to be a submodule of <code>management</code> (so don't forget the
+<code>__init__.py</code>s).</p>
+
+<p>Here's a quick rundown of what this is doing:</p>
+
+<ul>
+<li>By defining <code>Command</code> as a subclass of <code>BaseCommand</code>, this command gets
+registered as a <code>manage.py</code> command, with its name determined by the filename
+(in my case, <code>db:pull.py</code>).</li>
+<li><p>The <code>make_options</code> calls register several command line flags that can be
+passed in from the command line. Here's the documentation that it generates:
+``` text
+  $ ./manage.py help db:pull
+  Usage: manage.py db:pull [options]</p>
+
+<p>  Replaces <code>heroku db:pull</code> by using <code>pgbackups</code> to import data</p>
+
+<p>  Options:</p>
+
+<pre><code>-v VERBOSITY, --verbosity=VERBOSITY
+                      Verbosity level; 0=minimal output, 1=normal output,
+                      2=verbose output, 3=very verbose output
+--settings=SETTINGS   The Python path to a settings module, e.g.
+                      "myproject.settings.main". If this isn't provided, the
+                      DJANGO_SETTINGS_MODULE environment variable will be
+                      used.
+--pythonpath=PYTHONPATH
+                      A directory to add to the Python path, e.g.
+                      "/home/djangoprojects/myproject".
+--traceback           Print traceback on exception
+-x                    Delete the pg_dump file when complete.
+-p PATH, --path=PATH  Where to store the pg_dump file.
+--app=APP             Which Heroku app to use
+--version             show program's version number and exit
+-h, --help            show this help message and exit
+</code></pre>
+
+<p>```</p></li>
+<li>The handle method actually executes the command, in this case by executing
+the sequence of command line arguments from above using <code>subprocess</code>.</li>
+</ul>
+
+
+<h3>Paths and Settings</h3>
+
+<p>Since we're using a file dump, there are some path settings that may differ
+from system to system. The snippet above assumes that you have <code>PROJECT_ROOT</code>
+defined in your <code>settings.py</code> file; I always define <code>PROJECT_ROOT</code> like this:</p>
+
+<p>``` python settings.py</p>
+
+<pre><code>import os
+PROJECT_ROOT = os.path.dirname(os.path.realpath(__file__))
+</code></pre>
+
+<p>```</p>
+
+<p>and then use
+<a href="http://www.morethanseven.net/2009/02/11/django-settings-tip-setting-relative-paths.html">relative paths</a>
+for other path settings to keep things more portable:</p>
+
+<p>``` python settings.py</p>
+
+<pre><code>TEMPLATE_DIRS = (
+    os.path.join(PROJECT_ROOT, 'templates'),
+)
+</code></pre>
+
+<p>```</p>
+
+<p>It may seem suboptimal to have to deal with the filesystem and local paths, one
+incidental benefit to saving the dump files locally is that you can always
+restore from an old backup without using your live database (or internet
+connection) at all.</p>
+
+<h3>What's Next?</h3>
+
+<p>From here it should be clear how to implement a <code>db:push</code> command as well, but
+I don't use them as often in my workflow, so I haven't written one yet. I'll
+leave that as an exercise for the reader. If you have other ideas for making
+Heroku deployment easier, I'd love to hear them.</p>
+]]></content>
+  </entry>
+  
+  <entry>
+    <title type="html"><![CDATA[Wide Tables in Django]]></title>
+    <link href="http://blog.jdabbs.com/2012/06/25/wide-tables-in-django/"/>
+    <updated>2012-06-25T00:05:00-04:00</updated>
+    <id>http://blog.jdabbs.com/2012/06/25/wide-tables-in-django</id>
+    <content type="html"><![CDATA[<p>In this post, I'll discuss an exploration I recently did examining how Django
+handles the sort of wide tables that may arise from dynamically created models.
+Code is available
+<a href="https://github.com/jamesdabbs/django-experiments/tree/master/wide_tables">on github</a>
+if you'd like to follow along.</p>
+
+<h2>Dynamic Models</h2>
+
+<p>I've recently been working on a Django project which requires an extensible
+user profile model: different organizations need to track different information
+about users, and need to be able to configure that information on the fly.
+There are several ways to approach this, including
+<a href="http://en.wikipedia.org/wiki/Entity%E2%80%93attribute%E2%80%93value_model">eav</a>
+(presumably using <a href="https://github.com/mvpdev/django-eav">django-eav</a>), but I
+wanted to consider a solution based on dynamically creating models - among
+other considerations, having <code>ModelForms</code> "just work" would be a huge boon. I
+hope to further explore dynamic models in a future post, but for now I'll just
+summarize enough to tackle the question at hand: what kind of performance
+should we expect as columns are added and the Profile table gets wider?</p>
+
+<!-- more -->
+
+
+<p> For further reading on dynamic models, refer to Will Hardy's
+<a href="https://github.com/willhardy/dynamic-models">dynamic-models repository</a>
+and <a href="http://dynamic-models.rtfd.org/">accompanying docs</a>.</p>
+
+<h3>The Basics</h3>
+
+<p>Django's models aren't magic. Well,
+<a href="https://groups.google.com/forum/?fromgroups#!searchin/comp.lang.python/metaclasses$20are$20deeper$20magic/comp.lang.python/o61KSF77IWs/s09TqSEvTQgJ">they are</a>,
+but that magic is well encapsulated: Django checks your models module(s) for
+any subclasses of <code>django.db.models.Model</code> and maps each one to a table
+in the database. For each such model, every subclass of
+<code>django.db.models.Fields</code> attached to the model is mapped to a column in that
+table. The model then provides a host of utilities for moving conveniently
+between the python and database layers, but all it really needs is that
+mapping. So while you would typically define a <code>Profile</code> model by doing
+something like</p>
+
+<p>``` python models.py
+from django.db import models</p>
+
+<p>class Profile(models.Model):</p>
+
+<pre><code>user = models.ForeignKey('User')
+birthday = models.DateField()
+</code></pre>
+
+<p>```</p>
+
+<p>you could just as well use python's
+<a href="http://docs.python.org/library/functions.html#type">type</a> function to re-write
+that definition as</p>
+
+<p>``` python models.py
+from django.db import models</p>
+
+<p>Profile = type('Profile', (models.Model,), {</p>
+
+<pre><code>'user': models.ForeignKey('User'),
+'birthday': models.DateField(),
+'__module__': 'app.models'
+</code></pre>
+
+<p>})
+<code>``
+(The</code>'<strong>module</strong>'` key is a technical requirement.
+<a href="http://dynamic-models.readthedocs.org/">RTFD</a> for more info.)</p>
+
+<p>The basic idea for a dynamically extensible <code>Profile</code>, then, is to define a
+<code>Column</code> model with a <code>to_field</code> method which creates a
+<code>django.db.models.Field</code> instance corresponding to the column in question.
+Then we can define</p>
+
+<p>``` python models.py
+...</p>
+
+<p>attrs = {'<strong>module</strong>': 'app.models'}
+for c in Column.objects.all():</p>
+
+<pre><code>attrs[c.attr_name] = c.to_field()
+</code></pre>
+
+<p>Profile = type('Profile', (models.Model,), attrs)
+```</p>
+
+<p>There are a few potential pitfalls to be aware of, but that's a post for
+another day. For now, we'll focus on the question at hand.</p>
+
+<h2>Wide Tables</h2>
+
+<p>The (potential) problem is that as <code>Column</code> objects are created, the <code>Profile</code>
+model becomes more complicated and we may incur some non-trivial and
+unnecessary overhead in instantiating each <code>Profile</code> object - especially if we
+only care about a small subset of the database columns at any point in time. In
+order to test just how significant those effects are, I've created a demo app
+and tested several different functions using the
+<a href="http://docs.python.org/library/hotshot.html">hotshot</a> module. For the purpose
+of these tests, consider the following models:</p>
+
+<p><div><script src='https://gist.github.com/2986726.js?file='></script>
+<noscript><pre><code>from django.db import models
+
+
+def get_column_attrs(width):
+    &quot;&quot;&quot; Creates the specified number of fields and adds them to a dict,
+        suitable to be used as a model's attrs
+    &quot;&quot;&quot;
+    attrs = dict(
+        ('col_{}'.format(i), models.IntegerField(default=1))
+        for i in range(0, width)
+    )
+    attrs['__module__'] = 'wide_tables.models'  # Needed internally by Django
+    attrs['width'] = width  # Stored for later reference
+    return attrs
+
+# Dynamically define models with 10, 100, and 1000 columns, resp.
+Small = type(&quot;Small&quot;, (models.Model,), get_column_attrs(10))
+Medium = type(&quot;Medium&quot;, (models.Model,), get_column_attrs(100))
+Large = type(&quot;Large&quot;, (models.Model,), get_column_attrs(1000))</code></pre></noscript></div>
+</p>
+
+<p>A copy of the project is available
+<a href="https://github.com/jamesdabbs/django-experiments/tree/master/wide_tables">on github</a>.
+A few choices were made to deliberately reflect the project I intend to use a
+dynamic Profile in - a PostgreSQL database, simple but extant model field
+defaults, no more than 1000 columns, etc. Feel free to tweak the tests to suit
+your needs and re-run them with <code>manage.py wide_table_benchmarks</code>.</p>
+
+<p>Each method below was run 1000 times against each model. The full hotshot
+profiling results are available
+<a href="https://github.com/jamesdabbs/django-experiments/blob/master/wide_tables/benchmarks.txt">in the repository</a>,
+but I'll summarize the highlights. All times below are given in milliseconds (ms).</p>
+
+<h3>Saving</h3>
+
+<p>``` python</p>
+
+<pre><code>model().save()
+</code></pre>
+
+<p>```</p>
+
+<p>There isn't a whole lot to optimize here, but I had to create the objects
+anyway to run the next tests, so I figured I may as well profile the initial
+save and see where the time was being spent.</p>
+
+<table class="data">
+  <tr>
+    <th>Model</th>
+    <th>Time</th>
+    <th colspan=2>_commit</th>
+    <th colspan=2>execute</th>
+    <th colspan=2>__init__</th>
+  </tr>
+  <tr>
+    <td>Small</td>
+    <td>13.340</td>
+    <td>10.77</td>
+    <td>80.7%</td>
+    <td>1.259</td>
+    <td>9.44%</td>
+    <td>0.162</td>
+    <td>1.21%</td>
+  </tr>
+  <tr>
+    <td>Medium</td>
+    <td>12.791</td>
+    <td>6.196</td>
+    <td>48.4%</td>
+    <td>2.092</td>
+    <td>16.4%</td>
+    <td>0.758</td>
+    <td>5.93%</td>
+  </tr>
+  <tr>
+    <td>Large</td>
+    <td>46.894</td>
+    <td>10.245</td>
+    <td>21.8%</td>
+    <td>16.251</td>
+    <td>34.7%</td>
+    <td>4.815</td>
+    <td>10.3%</td>
+  </tr>
+</table>
+
+
+<p>Rather unsurprisingly, as the size of the model increases, the overhead of the
+default transaction behavior (<code>_commit</code>) becomes less significant, while the
+database calls themselves (<code>exectue</code>) and the model initialization (<code>__init__</code>)
+take up increasingly large portions of the total execution time. Somewhat more
+surprisingly, it actually took longer to save the <code>Small</code> model than the
+<code>Medium</code> model; that warrants future investigation.</p>
+
+<h3>Retrieving</h3>
+
+<p>Django provides the
+<a href="https://docs.djangoproject.com/en/dev/ref/models/querysets/#values">values</a>
+method to allow you to select from only a limited subset of columns. I tested
+the usual retrieval method:</p>
+
+<p>``` python</p>
+
+<pre><code>A() = list(model.objects.all())  # list() forces evaluation of the QuerySet
+</code></pre>
+
+<p>```</p>
+
+<p>against</p>
+
+<p>``` python</p>
+
+<pre><code>B(n) = list(model.objects.all().values(&lt;n columns&gt;))
+</code></pre>
+
+<p>```</p>
+
+<p>for varying numbers of columns.</p>
+
+<table class="data">
+  <tr>
+    <th>Model</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
+  </tr>
+  <tr>
+    <td>Small</td>
+    <td>26.988</td>
+    <td>14.962</td>
+    <td>&mdash;</td>
+    <td>&mdash;</td>
+  </tr>
+  <tr>
+    <td>Medium</td>
+    <td>111.755</td>
+    <td>14.932</td>
+    <td>69.681</td>
+    <td>&mdash;</td>
+  </tr>
+  <tr>
+    <td>Large</td>
+    <td>855.156</td>
+    <td>16.778</td>
+    <td>67.085</td>
+    <td>407.569</td>
+  </tr>
+</table>
+
+
+<p>As you may expect, the time it takes to retrieve and build an object
+from the database grows fairly quickly with the number of columns, but if you
+select a fixed number of columns, the time stays nearly flat. It's worth noting
+that the time it takes to select <em>all</em> values from an object (returning a
+<code>dict</code>) is about half the time it takes to retrieve the actual model. This
+suggests that</p>
+
+<ul>
+<li>If you don't need to use model methods on retreived data, you can mitigate
+the slowdown from wide tables by using <code>values</code>.</li>
+<li>If you don't need to use model methods, you should probably be using <code>values</code>
+no matter how wide your table is.</li>
+</ul>
+
+
+<h3>Updating</h3>
+
+<p>Django 1.5 (in development as of this writing),
+<a href="https://docs.djangoproject.com/en/dev/releases/1.5/">adds</a> an <code>update_fields</code>
+argument to models' <code>save</code> methods, which only updates the specified columns.
+This is useful in general, as it could help avoid some threading problems, but
+you'd definitely expect to see some speedups when updating a few columns in
+a wide table. As above, I tested the usual</p>
+
+<p>``` python</p>
+
+<pre><code>A() = obj.save()
+</code></pre>
+
+<p>```</p>
+
+<p>against</p>
+
+<p>``` python</p>
+
+<pre><code>B(n) = obj.save(update_fields=&lt;n columns&gt;)
+</code></pre>
+
+<p>```</p>
+
+<p>for varying numbers of columns.</p>
+
+<table class="data">
+  <tr>
+    <th>Model</th>
+    <th>A()</th>
+    <th>B(10)</th>
+    <th>B(100)</th>
+    <th>B(1000)</th>
+  </tr>
+  <tr>
+    <td>Small</td>
+    <td>12.434</td>
+    <td>12.542</td>
+    <td>&mdash;</td>
+    <td>&mdash;</td>
+  </tr>
+  <tr>
+    <td>Medium</td>
+    <td>23.812</td>
+    <td>12.924</td>
+    <td>20.21</td>
+    <td>&mdash;</td>
+  </tr>
+  <tr>
+    <td>Large</td>
+    <td>46.161</td>
+    <td>23.628</td>
+    <td>23.301</td>
+    <td>41.381</td>
+  </tr>
+</table>
+
+
+<p>Here, unlike the retrieval test, the time taken for a full save and a save
+manually specifying each field is comparable (which makes sense, since they're
+doing essentially the same thing). If you know for certain that you've only
+updated a certain subset of fields, though, you can realize some significant
+gains by using <code>update_fields</code>.</p>
+
+<h2>In Closing ...</h2>
+
+<p>This experiment indicates that large dynamic models can perform reasonably well,
+given judicious use of Django's lower-level database tools. It also suggests
+some techniques that may be useful, regardless of how you're defining your
+models:</p>
+
+<ul>
+<li>Use <code>values</code> if you only need an object's attributes, not a full model object</li>
+<li>Use the <code>update_fields</code> argument on a model's <code>save</code> function if you know
+that a certain subset of fields have been altered (e.g. if you're saving a
+<code>ModelForm</code> that has defined a <code>fields</code> attribute)</li>
+</ul>
+
+
+<p>Hopefully, you've also gotten some ideas about how you can approach questions
+that come up in your work. If you have any questions, comments, or suggestions
+for future topics, chime in below.</p>
+]]></content>
+  </entry>
+  
+</feed>
