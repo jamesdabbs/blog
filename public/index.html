@@ -9,8 +9,10 @@
   <meta name="author" content="James Dabbs">
 
   
-  <meta name="description" content="In this post, I&#8217;ll discuss an exploration I recently did examining how Django
-handles the sort of wide tables that may arise from dynamically &hellip;">
+  <meta name="description" content="Heroku has
+officially supported Django for
+a while now and although Heroku is awesome, there are still a few pain points.
+One in particular that&# &hellip;">
   
 
   <!-- http://t.co/dKP3o1e -->
@@ -83,6 +85,54 @@ handles the sort of wide tables that may arise from dynamically &hellip;">
       
   <header>
     
+      <h1 class="entry-title"><a href="/blog/2012/07/02/django-on-heroku-db-pull/">Django on Heroku - Db:pull</a></h1>
+    
+    
+      <p class="meta">
+        
+
+
+
+
+
+
+
+
+  
+
+
+<time datetime="2012-07-02T10:57:00-04:00" pubdate data-updated="true">Jul 2<span>nd</span>, 2012</time>
+        
+      </p>
+    
+  </header>
+
+
+  <div class="entry-content"><p><a href="http://www.heroku.com">Heroku</a> has
+<a href="https://devcenter.heroku.com/articles/django">officially supported Django</a> for
+a while now and although Heroku is awesome, there are still a few pain points.
+One in particular that&#8217;s been causing me problems is <code>heroku db:pull</code> - it&#8217;s a
+great convenience method, but it can be fragile and slow, especially on larger
+data sets.</p>
+
+<p>Heroku offers another convenient way to move data around (assuming you&#8217;re using
+Postgres): <a href="https://devcenter.heroku.com/articles/pgbackups">pgbackups</a>. Here&#8217;s
+the basic process: </div>
+  
+  
+    <footer>
+      <a rel="full-article" href="/blog/2012/07/02/django-on-heroku-db-pull/">Read on &rarr;</a>
+    </footer>
+  
+
+
+    </article>
+  
+  
+    <article>
+      
+  <header>
+    
       <h1 class="entry-title"><a href="/blog/2012/06/25/wide-tables-in-django/">Wide Tables in Django</a></h1>
     
     
@@ -148,6 +198,10 @@ should we expect as columns are added and the Profile table gets wider?</p>
     <section>
   <h1>Recent Posts</h1>
   <ul id="recent_posts">
+    
+      <li class="post">
+        <a href="/blog/2012/07/02/django-on-heroku-db-pull/">Django on Heroku - db:pull</a>
+      </li>
     
       <li class="post">
         <a href="/blog/2012/06/25/wide-tables-in-django/">Wide Tables in Django</a>
